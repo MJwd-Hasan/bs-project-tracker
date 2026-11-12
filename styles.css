@@ -108,3 +108,6 @@ button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
 @media(max-width:620px){.dataset-field{max-width:none}}
 
 .admin-edit-form label:has(textarea[name="datasets"]){max-width:430px}
+
+.form-actions{display:flex;align-items:center;gap:9px}.form-actions [hidden]{display:none}.form-actions .secondary-button{background:#626c7c}.form-actions .secondary-button:hover{background:#505a69}.edit-notice{display:block}
+@media(max-width:620px){.form-actions{flex-direction:column-reverse;align-items:stretch}.form-actions button{width:100%}}
