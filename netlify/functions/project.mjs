@@ -29,7 +29,7 @@ function validate(project) {
 export default async request => {
   if (request.method !== "POST") return reply({ error: "Method not allowed." }, 405);
   try {
-    const match = (request.headers.get("authorization") || "").match(/^Bearer\\s+(.+)$/i);
+    const match = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
     if (!match) return reply({ error: "Sign in with your @isrt.ac.bd Google account first." }, 401);
     const { db: store, auth } = services();
     const decoded = await auth.verifyIdToken(match[1]);
