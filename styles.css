@@ -90,3 +90,11 @@ button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
  .admin-entry-actions button{width:100%}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+
+/* Admin project editing */
+.admin-edit-form{display:grid;gap:14px;margin-top:18px;padding:18px;border:1px solid #e1e5ec;border-radius:10px;background:#fafbfc}
+.admin-edit-form[hidden]{display:none}
+.admin-edit-form .admin-entry-actions{gap:10px;flex-wrap:wrap}
+.admin-edit-form label{width:100%}
+.admin-entry-actions{gap:10px}
