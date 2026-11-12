@@ -170,7 +170,7 @@ function renderEntry(id, project) {
     input.name = field.name;
     input.value = field.value;
     input.maxLength = field.max;
-    input.required = true;
+    input.required = field.name !== "subtitle";
     if (field.name === "projectTitle") input.rows = 4;
     if (field.name === "datasets") input.rows = 2;
     label.append(caption, input);
@@ -199,7 +199,7 @@ function renderEntry(id, project) {
     if (!editForm.reportValidity()) return;
     const data = new FormData(editForm);
     const changes = Object.fromEntries(fields.map(field => [field.name, String(data.get(field.name) || "").trim()]));
-    if (Object.values(changes).some(value => !value)) {
+    if (["name", "projectTitle", "datasets"].some(key => !changes[key])) {
       setStatus("All project fields are required.", "error");
       return;
     }
