@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, deleteDoc, doc, getDoc, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, orderBy, deleteDoc, doc, getDoc, getDocs, writeBatch, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -148,19 +148,84 @@ function renderEntry(id, project) {
   const title = document.createElement("h3"); title.className = "entry-title"; title.textContent = project.projectTitle || "Untitled project";
   const owner = document.createElement("p"); owner.className = "meta-value"; owner.textContent = "Submitted by: " + (project.name || "Name not available");
   const dataset = document.createElement("p"); dataset.className = "meta-value"; dataset.textContent = "Datasets: " + (project.datasets || "Not specified");
-  const button = document.createElement("button"); button.className = "danger-button"; button.type = "button"; button.textContent = "Delete entry";
-  button.addEventListener("click", async () => {
+
+  const actions = document.createElement("div"); actions.className = "admin-entry-actions";
+  const editButton = document.createElement("button"); editButton.className = "secondary-button"; editButton.type = "button"; editButton.textContent = "Edit";
+  const deleteButton = document.createElement("button"); deleteButton.className = "danger-button"; deleteButton.type = "button"; deleteButton.textContent = "Delete entry";
+  actions.append(editButton, deleteButton);
+
+  const editForm = document.createElement("form");
+  editForm.className = "admin-edit-form";
+  editForm.hidden = true;
+  const fields = [
+    { name: "name", label: "Student name", value: project.name || "", max: 100 },
+    { name: "projectTitle", label: "Project title", value: project.projectTitle || "", max: 240 },
+    { name: "datasets", label: "Dataset(s)", value: project.datasets || "", max: 1000 }
+  ];
+  for (const field of fields) {
+    const label = document.createElement("label");
+    const caption = document.createElement("span"); caption.textContent = field.label;
+    const input = document.createElement(field.name === "datasets" ? "textarea" : "input");
+    input.name = field.name;
+    input.value = field.value;
+    input.maxLength = field.max;
+    input.required = true;
+    if (field.name === "datasets") input.rows = 3;
+    label.append(caption, input);
+    editForm.append(label);
+  }
+  const editActions = document.createElement("div"); editActions.className = "admin-entry-actions";
+  const saveButton = document.createElement("button"); saveButton.type = "submit"; saveButton.textContent = "Save changes";
+  const cancelButton = document.createElement("button"); cancelButton.type = "button"; cancelButton.className = "secondary-button"; cancelButton.textContent = "Cancel";
+  editActions.append(saveButton, cancelButton);
+  editForm.append(editActions);
+
+  editButton.addEventListener("click", () => {
+    editForm.hidden = false;
+    editButton.hidden = true;
+    deleteButton.hidden = true;
+    editForm.elements.namedItem("projectTitle").focus();
+  });
+  cancelButton.addEventListener("click", () => {
+    editForm.hidden = true;
+    editButton.hidden = false;
+    deleteButton.hidden = false;
+    for (const field of fields) editForm.elements.namedItem(field.name).value = field.value;
+  });
+  editForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!editForm.reportValidity()) return;
+    const data = new FormData(editForm);
+    const changes = Object.fromEntries(fields.map(field => [field.name, String(data.get(field.name) || "").trim()]));
+    if (Object.values(changes).some(value => !value)) {
+      setStatus("All project fields are required.", "error");
+      return;
+    }
+    saveButton.disabled = true; saveButton.textContent = "Saving…";
+    try {
+      await withTimeout(updateDoc(doc(db, "projects", id), changes), 15000, "Saving the project timed out. Check Firestore connectivity and try again.");
+      setStatus("Project entry updated successfully.", "success");
+      editForm.hidden = true;
+      editButton.hidden = false;
+      deleteButton.hidden = false;
+    } catch (error) {
+      console.error("Project update failed:", error);
+      setStatus(firestoreErrorMessage(error, "update this project"), "error");
+    } finally {
+      saveButton.disabled = false; saveButton.textContent = "Save changes";
+    }
+  });
+
+  deleteButton.addEventListener("click", async () => {
     const label = Number.isInteger(project.projectNumber) ? `Project #${project.projectNumber}` : "this project";
     if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
-    button.disabled = true; button.textContent = "Deleting…";
+    deleteButton.disabled = true; deleteButton.textContent = "Deleting…";
     try { await deleteDoc(doc(db, "projects", id)); setStatus("Entry deleted.", "success"); }
-    catch (error) { console.error(error); setStatus(firestoreErrorMessage(error, "delete entry"), "error"); button.disabled = false; button.textContent = "Delete entry"; }
+    catch (error) { console.error(error); setStatus(firestoreErrorMessage(error, "delete entry"), "error"); deleteButton.disabled = false; deleteButton.textContent = "Delete entry"; }
   });
-  const actions = document.createElement("div"); actions.className = "admin-entry-actions"; actions.append(button);
-  card.append(idLine, title, owner, dataset, actions);
+  card.append(idLine, title, owner, dataset, actions, editForm);
   return card;
 }
-
 function withTimeout(promise, milliseconds, message) {
   let timer;
   return Promise.race([
