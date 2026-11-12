@@ -3,74 +3,132 @@ import { getFirestore, collection, onSnapshot, query, orderBy, deleteDoc, doc, g
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
-const loginForm = document.querySelector("#login-form"), loginButton = document.querySelector("#login-button");
-const status = document.querySelector("#admin-status"), entries = document.querySelector("#admin-entries");
-const count = document.querySelector("#admin-count"), session = document.querySelector("#admin-session");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const loginForm = document.querySelector("#login-form");
+const loginButton = document.querySelector("#login-button");
+const status = document.querySelector("#admin-status");
+const entries = document.querySelector("#admin-entries");
+const count = document.querySelector("#admin-count");
+const session = document.querySelector("#admin-session");
 let stopListening = null;
+let authCheckInProgress = false;
 
 loginForm.addEventListener("submit", async event => {
   event.preventDefault();
   const data = new FormData(loginForm);
-  loginButton.disabled = true; loginButton.textContent = "Signing in…";
-  setStatus("Connecting to Firebase Authentication…", "");
+  loginButton.disabled = true;
+  loginButton.textContent = "Signing in…";
+  setStatus("Contacting Firebase Authentication…", "");
   try {
-    await signInWithEmailAndPassword(auth, data.get("email").trim(), data.get("password"));
+    await withTimeout(
+      signInWithEmailAndPassword(auth, String(data.get("email") || "").trim(), data.get("password")),
+      15000,
+      "Firebase Authentication did not respond within 15 seconds. Check your connection, Firebase authorized domains, and browser extensions."
+    );
+    setStatus("Credentials accepted. Checking Firestore administrator access…", "");
   } catch (error) {
     console.error("Firebase sign-in error:", error);
     setStatus(authErrorMessage(error), "error");
   } finally {
-    loginButton.disabled = false; loginButton.textContent = "Sign in";
+    loginButton.disabled = false;
+    loginButton.textContent = "Sign in";
   }
 });
-document.querySelector("#logout-button").addEventListener("click", () => signOut(auth));
+
+document.querySelector("#logout-button").addEventListener("click", async () => {
+  try { await signOut(auth); }
+  catch (error) { setStatus(`Sign-out failed (${error.code || "unknown error"}).`, "error"); }
+});
 
 onAuthStateChanged(auth, async user => {
+  if (authCheckInProgress) return;
+  authCheckInProgress = true;
   if (stopListening) { stopListening(); stopListening = null; }
-  entries.replaceChildren(); count.textContent = "";
+  entries.replaceChildren();
+  count.textContent = "";
+
   if (!user) {
-    loginForm.hidden = false; session.hidden = true;
+    loginForm.hidden = false;
+    session.hidden = true;
+    setStatus("Not signed in. Use your Firebase admin email and password.", "");
     entries.append(empty("Sign in as an authorized admin to manage entries."));
+    authCheckInProgress = false;
     return;
   }
-  setStatus("Checking administrator permissions…", "");
+
+  // Authentication is complete at this point. The next check is Firestore,
+  // not Firebase Authentication; keep the signed-in identity visible.
+  loginForm.hidden = true;
+  session.hidden = false;
+  document.querySelector("#admin-identity").textContent =
+    `Signed in as ${user.email || "Firebase user"}. Firebase UID: ${user.uid}`;
+  setStatus("Authentication successful. Checking your Firestore admin permission…", "");
+
   try {
-    const grant = await getDoc(doc(db, "admins", user.uid));
+    const grant = await withTimeout(
+      getDoc(doc(db, "admins", user.uid)),
+      12000,
+      "Firebase Authentication succeeded, but Firestore did not respond within 12 seconds. Check that Cloud Firestore exists, your browser can reach Firestore, and the latest Firestore rules are published."
+    );
+
     if (!grant.exists() || grant.data().enabled !== true) {
-      loginForm.hidden = false; session.hidden = false;
-      document.querySelector("#admin-identity").textContent = `Signed in as ${user.email || user.uid}. Firebase UID: ${user.uid}`;
-      setStatus("Authentication succeeded, but this account is not an authorized admin. Create Firestore document admins/${user.uid} with boolean field enabled = true.", "error");
-      entries.append(empty("This account can sign in but cannot manage entries until an admin grant is added."));
+      loginForm.hidden = false;
+      session.hidden = false;
+      setStatus(
+        `You are signed in, but this account is not authorized as an admin. In Firestore, create admins/${user.uid} with a boolean field enabled = true. Do not create this document in Authentication.`,
+        "error"
+      );
+      entries.append(empty("Admin permission is missing for this signed-in account."));
+      authCheckInProgress = false;
       return;
     }
-    loginForm.hidden = true; session.hidden = false;
-    document.querySelector("#admin-identity").textContent = `Authorized: ${user.email || user.uid}`;
-    setStatus("Admin access verified.", "success");
-    await migrateLegacyProjectNumbers();
-    stopListening = onSnapshot(query(collection(db, "projects"), orderBy("createdAt", "desc")), snapshot => {
-      count.textContent = `${snapshot.size} entries`;
-      entries.replaceChildren();
-      if (snapshot.empty) entries.append(empty("There are no entries to manage."));
-      snapshot.forEach(item => entries.append(renderEntry(item.id, item.data())));
-    }, error => {
-      console.error("Admin project listener error:", error);
-      setStatus(`Could not load projects (${error.code || "permission error"}). Check the latest Firestore rules.`, "error");
+
+    document.querySelector("#admin-identity").textContent = `Admin verified: ${user.email || user.uid}`;
+    setStatus("Admin permission verified. Loading project entries…", "success");
+
+    stopListening = onSnapshot(
+      query(collection(db, "projects"), orderBy("createdAt", "desc")),
+      snapshot => {
+        count.textContent = `${snapshot.size} entries`;
+        entries.replaceChildren();
+        if (snapshot.empty) entries.append(empty("There are no entries to manage."));
+        snapshot.forEach(item => entries.append(renderEntry(item.id, item.data())));
+      },
+      error => {
+        console.error("Admin project listener error:", error);
+        setStatus(firestoreErrorMessage(error, "load project entries"), "error");
+      }
+    );
+
+    // Number migration is non-blocking: the admin interface remains usable
+    // while legacy records are assigned integer IDs.
+    migrateLegacyProjectNumbers().catch(error => {
+      console.error("Legacy project-number migration failed:", error);
+      setStatus(firestoreErrorMessage(error, "migrate old project numbers"), "error");
     });
   } catch (error) {
-    console.error("Admin authorization/migration error:", error);
-    setStatus(`Could not verify admin access (${error.code || "permission error"}). Publish the latest firestore.rules and verify admins/${user.uid} has enabled: true.`, "error");
+    console.error("Firestore admin check failed:", error);
+    setStatus(firestoreErrorMessage(error, "check admin permissions"), "error");
+    entries.append(empty("Authentication is working, but the Firestore permission check failed or timed out. Follow the error above."));
+  } finally {
+    authCheckInProgress = false;
   }
 });
 
 async function migrateLegacyProjectNumbers() {
-  const snapshot = await getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc")));
+  const snapshot = await withTimeout(
+    getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc"))),
+    15000,
+    "Project-number migration timed out while reading Firestore."
+  );
   let next = snapshot.docs.reduce((max, item) => Math.max(max, Number(item.data().projectNumber) || 0), 0);
   const missing = snapshot.docs.filter(item => !Number.isInteger(item.data().projectNumber));
   if (!missing.length) {
     if (next > 0) await setDoc(doc(db, "counters", "projectSequence"), { value: next }, { merge: true });
     return;
   }
-  // Keep the existing newest-first order when assigning numbers to older records.
   for (let offset = 0; offset < missing.length; offset += 400) {
     const batch = writeBatch(db);
     for (const item of missing.slice(offset, offset + 400)) {
@@ -78,13 +136,15 @@ async function migrateLegacyProjectNumbers() {
       batch.update(item.ref, { projectNumber: next });
     }
     if (offset + 400 >= missing.length) batch.set(doc(db, "counters", "projectSequence"), { value: next });
-    await batch.commit();
+    await withTimeout(batch.commit(), 15000, "Project-number migration timed out while saving changes.");
   }
+  setStatus("Admin access verified. Legacy project numbers have been assigned.", "success");
 }
 
 function renderEntry(id, project) {
   const card = document.createElement("article"); card.className = "entry-card";
-  const idLine = document.createElement("div"); idLine.className = "project-id"; idLine.textContent = Number.isInteger(project.projectNumber) ? `Project #${project.projectNumber}` : "Project number pending";
+  const idLine = document.createElement("div"); idLine.className = "project-id";
+  idLine.textContent = Number.isInteger(project.projectNumber) ? `Project #${project.projectNumber}` : "Project number pending";
   const title = document.createElement("h3"); title.className = "entry-title"; title.textContent = project.projectTitle || "Untitled project";
   const owner = document.createElement("p"); owner.className = "meta-value"; owner.textContent = "Submitted by: " + (project.name || "Name not available");
   const dataset = document.createElement("p"); dataset.className = "meta-value"; dataset.textContent = "Datasets: " + (project.datasets || "Not specified");
@@ -94,25 +154,55 @@ function renderEntry(id, project) {
     if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
     button.disabled = true; button.textContent = "Deleting…";
     try { await deleteDoc(doc(db, "projects", id)); setStatus("Entry deleted.", "success"); }
-    catch (error) { console.error(error); setStatus(`Delete failed (${error.code || "permission error"}). Check admin permissions and Firestore rules.`, "error"); button.disabled = false; button.textContent = "Delete entry"; }
+    catch (error) { console.error(error); setStatus(firestoreErrorMessage(error, "delete entry"), "error"); button.disabled = false; button.textContent = "Delete entry"; }
   });
   const actions = document.createElement("div"); actions.className = "admin-entry-actions"; actions.append(button);
-  card.append(idLine, title, owner, dataset, actions); return card;
+  card.append(idLine, title, owner, dataset, actions);
+  return card;
 }
+
+function withTimeout(promise, milliseconds, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); })
+  ]).finally(() => clearTimeout(timer));
+}
+
 function authErrorMessage(error) {
   const code = error?.code || "unknown";
   const messages = {
-    "auth/invalid-credential": "Firebase rejected these credentials. Check the email and password; if they are correct, verify that this user exists in Firebase Authentication.",
-    "auth/wrong-password": "Incorrect password. Check the password for this Firebase Authentication user.",
-    "auth/user-not-found": "No Firebase Authentication user exists for this email. Add the admin user in Firebase Console → Authentication → Users.",
+    "auth/invalid-credential": "Firebase rejected these credentials. Verify the email/password and confirm the user exists under Firebase Authentication → Users.",
+    "auth/wrong-password": "Incorrect password for this Firebase Authentication user.",
+    "auth/user-not-found": "No Firebase Authentication user exists for this email. Create the admin user under Authentication → Users.",
     "auth/invalid-email": "The email address is not valid.",
-    "auth/too-many-requests": "Firebase temporarily blocked sign-in attempts. Wait a while and try again.",
-    "auth/network-request-failed": "The browser could not reach Firebase Authentication. Check your connection, ad blockers, and allowed domains.",
+    "auth/too-many-requests": "Firebase temporarily blocked sign-in attempts. Wait before trying again.",
+    "auth/network-request-failed": "The browser could not reach Firebase Authentication. Check internet access, extensions, and content blockers.",
     "auth/operation-not-allowed": "Email/Password sign-in is disabled. Enable it in Firebase Console → Authentication → Sign-in method.",
-    "auth/unauthorized-domain": "This website domain is not authorized. Add project-tracker29.netlify.app in Firebase Authentication → Settings → Authorized domains.",
-    "auth/api-key-not-valid.-please-pass-a-valid-api-key.": "The Firebase API key is invalid. Check firebase-config.js against the Firebase Web app configuration."
+    "auth/unauthorized-domain": "The Netlify domain is not authorized. Add project-tracker29.netlify.app under Authentication → Settings → Authorized domains.",
+    "auth/api-key-not-valid.-please-pass-a-valid-api-key.": "The Firebase API key is invalid. Compare firebase-config.js with the Firebase Web app configuration."
   };
-  return `${messages[code] || `Firebase sign-in failed (${code}). Check the browser console for the full error.`}`;
+  return messages[code] || `Firebase sign-in failed (${code}). Check the browser console for details.`;
 }
-function empty(message) { const el = document.createElement("div"); el.className = "empty-state"; el.textContent = message; return el; }
-function setStatus(message, type) { status.textContent = message; status.className = "status" + (type ? " " + type : ""); }
+
+function firestoreErrorMessage(error, action) {
+  const code = error?.code || "timeout";
+  if (code === "permission-denied") {
+    return `Firebase Authentication succeeded, but Firestore denied the request to ${action}. Publish this repository's latest firestore.rules. Also confirm admins/${auth.currentUser?.uid || "YOUR_UID"} exists with enabled set to boolean true.`;
+  }
+  if (code === "unavailable" || code === "deadline-exceeded" || code === "timeout") {
+    return `Firebase Authentication succeeded, but Firestore could not ${action} (${code}). Check Firestore database setup, internet access, and browser extensions; then reload.`;
+  }
+  return `Firebase Authentication succeeded, but Firestore could not ${action} (${code}): ${error?.message || "unknown error"}`;
+}
+
+function empty(message) {
+  const el = document.createElement("div");
+  el.className = "empty-state";
+  el.textContent = message;
+  return el;
+}
+function setStatus(message, type) {
+  status.textContent = message;
+  status.className = "status" + (type ? " " + type : "");
+}
