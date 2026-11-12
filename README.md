@@ -73,6 +73,7 @@ The repository is configured for a static Netlify deployment with a Functions di
 **`projects`**
 - `name`: string
 - `projectTitle`: string
+- `subtitle`: optional string (up to 160 characters)
 - `datasets`: string
 - `projectNumber`: integer
 - `createdAt`: server timestamp
