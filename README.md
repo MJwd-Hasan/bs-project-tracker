@@ -1,11 +1,11 @@
 # BSc Project Tracker 29
 
-A shared project directory for the BSc Project Tracker 29 cohort. Students submit their name, project title/domain, and dataset(s); everyone can view entries and compare possible overlap.
+A shared project directory for the BSc Project Tracker 29 cohort. Students sign in with a verified Google account ending in @isrt.ac.bd, then submit a project title/domain and dataset(s). Everyone can view entries; only the submitting account can edit its own project.
 
 ## Features
-- Submission fields: **Name**, **Project Domain / Title**, optional **Subtitle**, and **Dataset(s)**.
-- Every public project entry has an **Edit** button. Anyone can open the entry in the form and update its name, title, subtitle, or datasets without signing in or using an edit link.
-- Project submissions are created by a Netlify Function using a Firebase service account. Student edits are saved directly to Firestore under intentionally open public-update rules.
+- Submission fields: **Project Domain / Title** and **Dataset(s)**. The verified institutional email is attached automatically and displayed on the card.
+- Each project is tied to its submitter's Firebase Authentication UID and verified institutional email. Only that Google account can edit the project; all entries remain publicly viewable.
+- Project submissions are created by a Netlify Function that verifies the caller's Firebase ID token. Student edits are saved directly to Firestore under owner-checked security rules.
 - Each entry receives a simple sequential integer Project Number (for example, **Project #12**); the Firestore document key remains internal.
 - Similarity score: **80% title/domain word similarity + 20% dataset similarity**.
 - Related projects are grouped at a 25% pairwise similarity threshold. This is a screening indicator, not proof of duplication.
@@ -18,13 +18,13 @@ The Firebase web configuration is in `firebase-config.js`. It identifies the Fir
 
 1. Open [Firebase Console](https://console.firebase.google.com/) and select **bsc-project-tracker-29**.
 2. Ensure **Cloud Firestore** is enabled.
-3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. Public client-side project creation is disabled; new submissions go through the Netlify Function, while edits are allowed directly from the public site.
-4. In Authentication → **Sign-in method**, enable **Email/Password**.
+3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. Project reads are public, student edits require the owner's verified institutional Google identity, and new submissions go through the Netlify Function.
+4. In Authentication → **Sign-in method**, enable **Google**.
 5. In Authentication → **Settings** → **Authorized domains**, ensure `project-tracker29.netlify.app` is listed. Add it if missing.
 6. In Authentication → **Users**, create the admin user manually. There is no public sign-up form.
 7. Copy that user's **UID**.
 8. In Firestore → **Data**, create a collection named `admins`. Create a document with the exact UID as its document ID and a boolean field `enabled: true`.
-9. In Firebase Console → Project settings → Service accounts, generate a private key for a service account. Add the complete JSON contents as the Netlify environment variable `FIREBASE_SERVICE_ACCOUNT_JSON` (Functions scope). This is required for **new submissions**, not for public edits. Never commit this JSON to GitHub or place it in `firebase-config.js`.
+9. In Firebase Console → Project settings → Service accounts, generate a private key for a service account. Add the complete JSON contents as the Netlify environment variable `FIREBASE_SERVICE_ACCOUNT_JSON` (Functions scope). This is required for **new submissions**. Never commit this JSON to GitHub or place it in `firebase-config.js`.
 10. Trigger a Netlify redeploy so the Function receives the new variable.
 11. Open `https://project-tracker29.netlify.app/admin.html` and sign in with the same email and password.
 
@@ -40,11 +40,15 @@ The admin page now displays specific Firebase authentication errors:
 
 The UID shown on the admin page is the value to use as the `admins` document ID. Do not share the admin password.
 
-### Open public editing
+### Institutional student access and ownership
 
-Every project card has an **Edit** button. Selecting it loads that entry into the form; save to update the existing Firestore document. No private link, edit token, account, or authentication is required for student edits. The Firestore rules intentionally permit any visitor to update the public fields (name, project title, subtitle, and datasets). This means edits are not restricted to the original submitter: anyone can change or overwrite any entry. Use this mode only if the cohort accepts fully open collaboration. Admin deletion and the admin panel remain protected by Firebase Authentication.
+The public directory is readable without signing in. To submit or edit, students must use **Continue with Google** with a verified Google account ending in `@isrt.ac.bd`. The hosted-domain parameter is only a Google sign-in hint; the Netlify function and Firestore Security Rules enforce the actual domain restriction.
 
-Existing private edit-token records are no longer used and can be left in Firestore.
+Each new project stores `ownerUid` and `ownerEmail`. The email is displayed automatically on the public card. The Edit button is shown only when the signed-in Firebase UID matches the project's `ownerUid`; Firestore rules independently enforce the same ownership check. Students can see every project but cannot edit another student's entry.
+
+**Legacy entries:** projects created before institutional sign-in do not have a verified owner UID/email. They remain visible but are not editable by students until an admin assigns ownership or the student submits a new entry. Ownership cannot safely be inferred from an old display name.
+
+
 
 ## Project numbers and existing records
 
@@ -73,10 +77,10 @@ The repository is configured for a static Netlify deployment with a Functions di
 ## Firestore collections
 
 **`projects`**
-- `name`: string
 - `projectTitle`: string
-- `subtitle`: optional string (up to 160 characters)
 - `datasets`: string
+- `ownerUid`: Firebase Authentication UID of the submitting student
+- `ownerEmail`: verified `@isrt.ac.bd` email displayed publicly
 - `projectNumber`: integer
 - `createdAt`: server timestamp
 
@@ -88,4 +92,4 @@ The repository is configured for a static Netlify deployment with a Functions di
 
 ## Security note
 
-Project reads and student edits are public. Anyone can update the public project fields (student name, project title, subtitle, and datasets) directly from the Edit button; no unique edit link, account, or service-account key is required for editing. New project submissions still use the Netlify Function and require `FIREBASE_SERVICE_ACCOUNT_JSON`. Keep that service-account JSON private. Because editing and submissions are open to visitors, consider adding rate limiting, moderation, or CAPTCHA if spam or unwanted changes become an issue.
+Project reads are public. Student submissions require a verified Google identity on the @isrt.ac.bd domain, and Firestore rules restrict edits to the matching owner UID. The Netlify submission function requires FIREBASE_SERVICE_ACCOUNT_JSON; keep it private and never commit it.
