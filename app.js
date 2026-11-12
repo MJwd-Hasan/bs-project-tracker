@@ -6,7 +6,7 @@ const form = document.querySelector("#project-form");
 const submitButton = document.querySelector("#submit-button");
 const formStatus = document.querySelector("#form-status");
 const editNotice = document.querySelector("#edit-notice");
-const editToken = new URLSearchParams(location.search).get("edit");
+const editToken = new URLSearchParams(location.hash.slice(1)).get("edit");
 const projectApi = "/.netlify/functions/project";
 const loadStatus = document.querySelector("#load-status");
 const entriesContainer = document.querySelector("#project-entries");
@@ -66,7 +66,7 @@ try {
       } else {
         form.reset();
         const editUrl = new URL(location.href);
-        editUrl.searchParams.set("edit", result.editToken);
+        editUrl.search = "";\n        editUrl.hash = "edit=" + encodeURIComponent(result.editToken);
         const link = document.createElement("a");
         link.href = editUrl.href; link.textContent = "Open your private edit link";
         link.className = "edit-link";
