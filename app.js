@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, runTransaction } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, orderBy, serverTimestamp, doc, runTransaction } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const form = document.querySelector("#project-form");
@@ -73,8 +73,8 @@ function setStatus(message, type) {
   formStatus.className = "status" + (type ? " " + type : "");
 }
 function tokenize(value) {
-  return clean(value).toLowerCase().normalize("NFKD").replace(/[^a-z0-9\\s]/g, " ")
-    .split(/\\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
+  return clean(value).toLowerCase().normalize("NFKD").replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
 }
 const STOP_WORDS = new Set(["the","and","for","with","from","into","using","use","based","study","analysis","of","in","on","to","a","an","by","at","via","data","dataset","project"]);
 function cosineSimilarity(a, b) {
