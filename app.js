@@ -31,6 +31,7 @@ try {
 
   if (editToken) {
     editNotice.hidden = false;
+    submitButton.disabled = true;
     submitButton.textContent = "Load project…";
     fetch(projectApi, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "load", token: editToken }) })
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "This edit link is invalid or expired."); return data.project; })
@@ -38,6 +39,7 @@ try {
         for (const key of ["name", "projectTitle", "subtitle", "datasets"]) form.elements.namedItem(key).value = project[key] || "";
         document.querySelector("#form-heading").textContent = "Edit your project";
         submitButton.textContent = "Save changes";
+        submitButton.disabled = false;
         setStatus("Your project is loaded. Make your changes and save.", "success");
       })
       .catch(error => { setStatus(error.message, "error"); submitButton.disabled = true; });
