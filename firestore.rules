@@ -7,27 +7,40 @@ service cloud.firestore {
         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.enabled == true;
     }
 
+    function isInstitutionalGoogleUser() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.firebase.sign_in_provider == 'google.com' &&
+        request.auth.token.email is string &&
+        request.auth.token.email.matches('.*@isrt\\.ac\\.bd$');
+    }
+
     match /projects/{projectId} {
       allow read: if true;
+      // Creation is performed by the Netlify function after verifying the Firebase ID token.
       allow create: if false;
-      // Open editing: any visitor may change public project fields.
       allow update: if (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','projectTitle','subtitle','datasets']) &&
-        request.resource.data.name is string &&
-        request.resource.data.name.size() > 0 &&
-        request.resource.data.name.size() <= 100 &&
+        isInstitutionalGoogleUser() &&
+        resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.ownerEmail == resource.data.ownerEmail &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectTitle','datasets']) &&
         request.resource.data.projectTitle is string &&
         request.resource.data.projectTitle.size() > 0 &&
         request.resource.data.projectTitle.size() <= 240 &&
-        (!('subtitle' in request.resource.data) || (request.resource.data.subtitle is string && request.resource.data.subtitle.size() <= 160)) &&
         request.resource.data.datasets is string &&
         request.resource.data.datasets.size() > 0 &&
         request.resource.data.datasets.size() <= 1000
       ) || (
         isAdmin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectNumber']) &&
-        request.resource.data.projectNumber is int &&
-        request.resource.data.projectNumber > 0
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectTitle','datasets','projectNumber']) &&
+        request.resource.data.projectTitle is string &&
+        request.resource.data.projectTitle.size() > 0 &&
+        request.resource.data.projectTitle.size() <= 240 &&
+        request.resource.data.datasets is string &&
+        request.resource.data.datasets.size() > 0 &&
+        request.resource.data.datasets.size() <= 1000 &&
+        (!('projectNumber' in request.resource.data) || (request.resource.data.projectNumber is int && request.resource.data.projectNumber > 0))
       );
       allow delete: if isAdmin();
     }
@@ -48,8 +61,7 @@ service cloud.firestore {
         request.resource.data.value is int && request.resource.data.value > 0;
       allow update: if counterId == 'projectSequence' &&
         request.resource.data.keys().hasOnly(['value']) &&
-        request.resource.data.value is int &&
-        isAdmin();
+        request.resource.data.value is int && isAdmin();
       allow delete: if false;
     }
   }
