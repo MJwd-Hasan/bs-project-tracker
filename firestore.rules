@@ -25,7 +25,18 @@ service cloud.firestore {
         request.resource.data.projectNumber > 0 &&
         request.resource.data.createdAt == request.time;
       allow update: if isAdmin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectNumber']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','projectTitle','datasets','projectNumber']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.projectTitle is string &&
+        request.resource.data.projectTitle.size() > 0 &&
+        request.resource.data.projectTitle.size() <= 240 &&
+        request.resource.data.datasets is string &&
+        request.resource.data.datasets.size() > 0 &&
+        request.resource.data.datasets.size() <= 1000 &&
+        request.resource.data.projectNumber is int &&
+        request.resource.data.projectNumber > 0;
       allow delete: if isAdmin();
     }
 
