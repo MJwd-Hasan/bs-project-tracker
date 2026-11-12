@@ -62,9 +62,9 @@ The threshold is a practical display setting, not a validated academic cutoff. S
 
 ## Optional open-source LLM judge
 
-An optional Netlify Function provides a second-stage semantic title review using Hugging Face Inference Providers and the open-weight `Qwen/Qwen2.5-7B-Instruct-1M` model.
+An optional Netlify Function provides a second-stage semantic title review using Groq's `openai/gpt-oss-120b` model.
 
-To enable it, create a Hugging Face token with Inference Providers permission, add it to Netlify as the `HF_TOKEN` environment variable, and redeploy. Provider availability and inference may require credits or paid usage. The core tracker does not depend on this feature.
+To enable it, create a Groq API key, add it to Netlify as the `GROQ_API_KEY` environment variable (Functions scope), and redeploy. The function first requests ordinary JSON and validates the result; if parsing fails, it retries once using Groq JSON mode. The AI judge is a screening aid, not proof that two projects are duplicates.
 
 ## Netlify deployment
 
@@ -88,4 +88,4 @@ The repository is configured for a static Netlify deployment with a Functions di
 
 ## Security note
 
-Project reads are public. Submissions and student edits are handled by a Netlify Function using `FIREBASE_SERVICE_ACCOUNT_JSON`; direct client writes and access to edit-token records are denied by Firestore rules. Anyone holding a private edit link can edit its associated entry. Protect the service-account JSON and never share edit links publicly. Consider adding rate limiting or CAPTCHA if spam becomes an issue.
+Project reads and student edits are public. Anyone can update the public project fields (student name, project title, subtitle, and datasets) directly from the Edit button; no unique edit link, account, or service-account key is required for editing. New project submissions still use the Netlify Function and require `FIREBASE_SERVICE_ACCOUNT_JSON`. Keep that service-account JSON private. Because editing and submissions are open to visitors, consider adding rate limiting, moderation, or CAPTCHA if spam or unwanted changes become an issue.
