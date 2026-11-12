@@ -159,18 +159,20 @@ function renderEntry(id, project) {
   editForm.hidden = true;
   const fields = [
     { name: "name", label: "Student name", value: project.name || "", max: 100 },
-    { name: "projectTitle", label: "Project title", value: project.projectTitle || "", max: 240 },
+    { name: "projectTitle", label: "Project Domain / Title", value: project.projectTitle || "", max: 240 },
+    { name: "subtitle", label: "Subtitle", value: project.subtitle || "", max: 160 },
     { name: "datasets", label: "Dataset(s)", value: project.datasets || "", max: 1000 }
   ];
   for (const field of fields) {
     const label = document.createElement("label");
     const caption = document.createElement("span"); caption.textContent = field.label;
-    const input = document.createElement(field.name === "datasets" ? "textarea" : "input");
+    const input = document.createElement(["datasets", "projectTitle"].includes(field.name) ? "textarea" : "input");
     input.name = field.name;
     input.value = field.value;
     input.maxLength = field.max;
     input.required = true;
-    if (field.name === "datasets") input.rows = 3;
+    if (field.name === "projectTitle") input.rows = 4;
+    if (field.name === "datasets") input.rows = 2;
     label.append(caption, input);
     editForm.append(label);
   }
