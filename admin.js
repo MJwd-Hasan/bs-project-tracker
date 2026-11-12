@@ -67,7 +67,7 @@ async function migrateLegacyProjectNumbers() {
   let next = snapshot.docs.reduce((max, item) => Math.max(max, Number(item.data().projectNumber) || 0), 0);
   const missing = snapshot.docs.filter(item => !Number.isInteger(item.data().projectNumber));
   if (!missing.length) {
-    await setDoc(doc(db, "counters", "projectSequence"), { value: next }, { merge: true });
+    if (next > 0) await setDoc(doc(db, "counters", "projectSequence"), { value: next }, { merge: true });
     return;
   }
   // Keep the existing newest-first order when assigning numbers to older records.
