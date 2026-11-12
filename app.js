@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, runTransaction } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const form = document.querySelector("#project-form");
@@ -8,6 +8,7 @@ const formStatus = document.querySelector("#form-status");
 const loadStatus = document.querySelector("#load-status");
 const entriesContainer = document.querySelector("#project-entries");
 const entryCount = document.querySelector("#entry-count");
+let latestProjects = [];
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -15,13 +16,13 @@ try {
   const projectsRef = collection(db, "projects");
 
   onSnapshot(query(projectsRef, orderBy("createdAt", "desc")), snapshot => {
-    const projects = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-    entryCount.textContent = `${projects.length} ${projects.length === 1 ? "entry" : "entries"}`;
-    loadStatus.textContent = projects.length ? "" : "No projects have been added yet.";
-    renderProjects(projects);
+    latestProjects = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+    entryCount.textContent = `${latestProjects.length} ${latestProjects.length === 1 ? "entry" : "entries"}`;
+    loadStatus.textContent = latestProjects.length ? "" : "No projects have been added yet.";
+    renderProjects(latestProjects);
   }, error => {
-    console.error(error);
-    loadStatus.textContent = "Could not load entries. Check Firebase configuration and Firestore rules.";
+    console.error("Firestore listener error:", error);
+    loadStatus.textContent = `Could not load projects (${error.code || "connection error"}). Check Firebase and Firestore rules.`;
     entryCount.textContent = "Unavailable";
   });
 
@@ -30,6 +31,7 @@ try {
     if (!form.reportValidity()) return;
     const data = new FormData(form);
     const project = {
+      name: clean(data.get("name")),
       projectTitle: clean(data.get("projectTitle")),
       datasets: clean(data.get("datasets")),
       createdAt: serverTimestamp()
@@ -38,21 +40,30 @@ try {
     submitButton.textContent = "Submitting…";
     setStatus("", "");
     try {
-      const created = await addDoc(projectsRef, project);
+      const projectNumber = await runTransaction(db, async transaction => {
+        const counterRef = doc(db, "counters", "projectSequence");
+        const counterSnapshot = await transaction.get(counterRef);
+        const previous = counterSnapshot.exists() ? Number(counterSnapshot.data().value) || 0 : 0;
+        const next = Math.max(previous, latestProjects.length) + 1;
+        transaction.set(counterRef, { value: next });
+        const newProjectRef = doc(projectsRef);
+        transaction.set(newProjectRef, { ...project, projectNumber: next });
+        return next;
+      });
       form.reset();
-      setStatus(`Project submitted. Your Project ID is BSP29-${created.id.toUpperCase()}.`, "success");
+      setStatus(`Project submitted. Your Project ID is ${projectNumber}.`, "success");
       document.querySelector("#project-list").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
-      console.error(error);
-      setStatus("Submission failed. Check your Firebase setup and try again.", "error");
+      console.error("Project submission error:", error);
+      setStatus(`Submission failed (${error.code || "unknown error"}). Check the latest Firestore rules and try again.`, "error");
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = "Submit project";
     }
   });
 } catch (error) {
-  console.error(error);
-  loadStatus.textContent = "Firebase could not be initialized. Check firebase-config.js.";
+  console.error("Firebase initialization error:", error);
+  loadStatus.textContent = `Firebase could not initialize (${error.code || "configuration error"}). Check firebase-config.js.`;
   entryCount.textContent = "Unavailable";
 }
 
@@ -62,8 +73,8 @@ function setStatus(message, type) {
   formStatus.className = "status" + (type ? " " + type : "");
 }
 function tokenize(value) {
-  return clean(value).toLowerCase().normalize("NFKD").replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
+  return clean(value).toLowerCase().normalize("NFKD").replace(/[^a-z0-9\\s]/g, " ")
+    .split(/\\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
 }
 const STOP_WORDS = new Set(["the","and","for","with","from","into","using","use","based","study","analysis","of","in","on","to","a","an","by","at","via","data","dataset","project"]);
 function cosineSimilarity(a, b) {
@@ -87,7 +98,7 @@ function compareProjects(a, b) {
   const datasets = datasetSimilarity(a.datasets, b.datasets);
   return { score: Math.round((0.8 * title + 0.2 * datasets) * 100), title: Math.round(title * 100), datasets: Math.round(datasets * 100) };
 }
-function projectId(id) { return "BSP29-" + String(id).toUpperCase(); }
+function displayNumber(project, index) { return Number.isInteger(project.projectNumber) ? project.projectNumber : index + 1; }
 function renderProjects(projects) {
   entriesContainer.replaceChildren();
   if (!projects.length) {
@@ -97,7 +108,7 @@ function renderProjects(projects) {
     entriesContainer.append(empty);
     return;
   }
-  const records = projects.map(project => ({ ...project, comparisons: [] }));
+  const records = projects.map((project, index) => ({ ...project, displayNumber: displayNumber(project, index), comparisons: [] }));
   for (let i = 0; i < records.length; i++) {
     for (let j = i + 1; j < records.length; j++) {
       const comparison = compareProjects(records[i], records[j]);
@@ -106,8 +117,6 @@ function renderProjects(projects) {
     }
   }
   for (const record of records) record.comparisons.sort((a,b) => b.score - a.score);
-  // Connected components keep related projects next to one another. A 25% edge
-  // creates a group; entries without such a match remain in the ungrouped list.
   const visited = new Set(), groups = [];
   const byId = new Map(records.map(record => [record.id, record]));
   for (const record of records) {
@@ -124,10 +133,7 @@ function renderProjects(projects) {
         }
       }
     }
-    component.sort((a,b) => {
-      const aTop = a.comparisons[0]?.score || 0, bTop = b.comparisons[0]?.score || 0;
-      return bTop - aTop;
-    });
+    component.sort((a,b) => (b.comparisons[0]?.score || 0) - (a.comparisons[0]?.score || 0));
     groups.push(component);
   }
   groups.sort((a,b) => (b.length > 1 ? 1 : 0) - (a.length > 1 ? 1 : 0) || (b[0].comparisons[0]?.score || 0) - (a[0].comparisons[0]?.score || 0));
@@ -150,17 +156,17 @@ function renderProject(project) {
   const article = document.createElement("article");
   article.className = "entry-card";
   const top = document.createElement("div"); top.className = "entry-top";
-  const id = document.createElement("span"); id.className = "project-id"; id.textContent = projectId(project.id);
+  const id = document.createElement("span"); id.className = "project-id"; id.textContent = `Project #${project.displayNumber}`;
   const title = document.createElement("h3"); title.className = "entry-title"; title.textContent = project.projectTitle || "Untitled project";
   top.append(id);
   const meta = document.createElement("div"); meta.className = "entry-meta";
-  meta.append(makeMeta("Dataset(s)", project.datasets || "Not specified"));
+  meta.append(makeMeta("Submitted by", project.name || "Name not available"), makeMeta("Dataset(s)", project.datasets || "Not specified"));
   const best = project.comparisons[0];
   const comparison = document.createElement("div"); comparison.className = "similarity-result";
   const label = document.createElement("span"); label.className = "meta-label"; label.textContent = "Closest project match";
   const value = document.createElement("div"); value.className = "meta-value";
   if (best) {
-    value.textContent = `${projectId(best.other.id)} · ${best.score}% overall (title ${best.title}%, datasets ${best.datasets}%)`;
+    value.textContent = `Project #${best.other.displayNumber} · ${best.score}% overall (title ${best.title}%, datasets ${best.datasets}%)`;
     if (best.score >= 25) comparison.classList.add("similar");
   } else value.textContent = "No other entries to compare yet";
   comparison.append(label, value);
