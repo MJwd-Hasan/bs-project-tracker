@@ -3,7 +3,9 @@
 A shared project directory for the BSc Project Tracker 29 cohort. Students submit their name, project title/domain, and dataset(s); everyone can view entries and compare possible overlap.
 
 ## Features
-- Submission fields: **Name**, **Project Domain / Title**, and **Dataset(s)**.
+- Submission fields: **Name**, **Project Domain / Title**, optional **Subtitle**, and **Dataset(s)**.
+- Students receive a private, unguessable edit link after submission. The link lets them load and update their own entry later without creating an account.
+- Edit tokens are stored as SHA-256 hashes in a private Firestore collection; project writes are performed by a Netlify Function using a Firebase service account.
 - Each entry receives a simple sequential integer Project Number (for example, **Project #12**); the Firestore document key remains internal.
 - Similarity score: **80% title/domain word similarity + 20% dataset similarity**.
 - Related projects are grouped at a 25% pairwise similarity threshold. This is a screening indicator, not proof of duplication.
@@ -16,13 +18,15 @@ The Firebase web configuration is in `firebase-config.js`. It identifies the Fir
 
 1. Open [Firebase Console](https://console.firebase.google.com/) and select **bsc-project-tracker-29**.
 2. Ensure **Cloud Firestore** is enabled.
-3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. This is required for the current Name + integer-number schema and counter transaction.
+3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. Public client-side project creation is disabled; project submissions and student edits now go through the Netlify Function.
 4. In Authentication → **Sign-in method**, enable **Email/Password**.
 5. In Authentication → **Settings** → **Authorized domains**, ensure `project-tracker29.netlify.app` is listed. Add it if missing.
 6. In Authentication → **Users**, create the admin user manually. There is no public sign-up form.
 7. Copy that user's **UID**.
 8. In Firestore → **Data**, create a collection named `admins`. Create a document with the exact UID as its document ID and a boolean field `enabled: true`.
-9. Open `https://project-tracker29.netlify.app/admin.html` and sign in with the same email and password.
+9. In Firebase Console → Project settings → Service accounts, generate a private key for a service account. Add the complete JSON contents as the Netlify environment variable `FIREBASE_SERVICE_ACCOUNT_JSON` (Functions scope). Never commit this JSON to GitHub or place it in `firebase-config.js`.
+10. Trigger a Netlify redeploy so the Function receives the new variable.
+11. Open `https://project-tracker29.netlify.app/admin.html` and sign in with the same email and password.
 
 ### Admin login troubleshooting
 
@@ -35,6 +39,10 @@ The admin page now displays specific Firebase authentication errors:
 - **permission-denied while checking admin status**: publish the latest `firestore.rules`, then reload the page.
 
 The UID shown on the admin page is the value to use as the `admins` document ID. Do not share the admin password.
+
+### Student edit links
+
+After a successful submission, the site displays a private edit link and a copy button. Students should bookmark or save that link; anyone who possesses it can edit that one project, so it must not be posted publicly. Open the link to load the existing entry, change the fields, and save. The edit token is high-entropy and only its SHA-256 hash is stored in Firestore. If the link is lost, an administrator must update the entry from the admin panel; there is no token recovery or public lookup.
 
 ## Project numbers and existing records
 
@@ -69,6 +77,12 @@ The repository is configured for a static Netlify deployment with a Functions di
 - `projectNumber`: integer
 - `createdAt`: server timestamp
 
+**`projectEditKeys/{sha256-token}`**
+- `projectId`: the associated project document ID
+- `createdAt`: server timestamp
+
+This collection is inaccessible to browser clients. The Netlify Function validates tokens and updates projects using the Firebase Admin SDK.
+
 **`admins/{uid}`**
 - `enabled`: boolean
 
@@ -77,4 +91,4 @@ The repository is configured for a static Netlify deployment with a Functions di
 
 ## Security note
 
-Project reads and submissions are public. This is convenient for a cohort directory but permits spam submissions. Admin grants cannot be created or modified from the public client; create them only in Firebase Console. Consider Firebase App Check or an authenticated submission workflow if abuse becomes an issue.
+Project reads are public. Submissions and student edits are handled by a Netlify Function using `FIREBASE_SERVICE_ACCOUNT_JSON`; direct client writes and access to edit-token records are denied by Firestore rules. Anyone holding a private edit link can edit its associated entry. Protect the service-account JSON and never share edit links publicly. Consider adding rate limiting or CAPTCHA if spam becomes an issue.
