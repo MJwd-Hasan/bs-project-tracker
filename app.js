@@ -1,17 +1,18 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const form = document.querySelector("#project-form");
 const submitButton = document.querySelector("#submit-button");
 const formStatus = document.querySelector("#form-status");
 const editNotice = document.querySelector("#edit-notice");
-const editToken = new URLSearchParams(location.hash.slice(1)).get("edit");
 const projectApi = "/.netlify/functions/project";
 const loadStatus = document.querySelector("#load-status");
 const entriesContainer = document.querySelector("#project-entries");
 const entryCount = document.querySelector("#entry-count");
 let latestProjects = [];
+let editingProjectId = null;
+const cancelEditButton = document.querySelector("#cancel-edit-button");
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -29,21 +30,7 @@ try {
     entryCount.textContent = "Unavailable";
   });
 
-  if (editToken) {
-    editNotice.hidden = false;
-    submitButton.disabled = true;
-    submitButton.textContent = "Load project…";
-    fetch(projectApi, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "load", token: editToken }) })
-      .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "This edit link is invalid or expired."); return data.project; })
-      .then(project => {
-        for (const key of ["name", "projectTitle", "subtitle", "datasets"]) form.elements.namedItem(key).value = project[key] || "";
-        document.querySelector("#form-heading").textContent = "Edit your project";
-        submitButton.textContent = "Save changes";
-        submitButton.disabled = false;
-        setStatus("Your project is loaded. Make your changes and save.", "success");
-      })
-      .catch(error => { setStatus(error.message, "error"); submitButton.disabled = true; });
-  }
+  cancelEditButton?.addEventListener("click", () => { form.reset(); setEditMode(null); setStatus("Editing cancelled.", ""); });
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -51,41 +38,33 @@ try {
     const data = new FormData(form);
     const project = Object.fromEntries(["name", "projectTitle", "subtitle", "datasets"].map(key => [key, clean(data.get(key))]));
     submitButton.disabled = true;
-    submitButton.textContent = editToken ? "Saving…" : "Submitting…";
+    submitButton.textContent = editingProjectId ? "Saving…" : "Submitting…";
+    if (cancelEditButton) cancelEditButton.disabled = true;
     setStatus("", "");
     try {
-      const response = await fetch(projectApi, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editToken ? { action: "update", token: editToken, project } : { action: "create", project })
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "The request failed.");
-      if (editToken) {
-        setStatus("Your project has been updated successfully.", "success");
-        submitButton.textContent = "Saved";
-      } else {
+      if (editingProjectId) {
+        await updateDoc(doc(db, "projects", editingProjectId), project);
+        setStatus("Project updated. Changes are visible to everyone.", "success");
         form.reset();
-        const editUrl = new URL(location.href);
-        editUrl.search = "";
-        editUrl.hash = "edit=" + encodeURIComponent(result.editToken);
-        const link = document.createElement("a");
-        link.href = editUrl.href; link.textContent = "Open your private edit link";
-        link.className = "edit-link";
-        const copy = document.createElement("button");
-        copy.type = "button"; copy.className = "secondary-button"; copy.textContent = "Copy edit link";
-        copy.addEventListener("click", async () => {
-          try { await navigator.clipboard.writeText(editUrl.href); copy.textContent = "Copied"; }
-          catch { setStatus("Copy was blocked. Use the private edit link above and bookmark it.", "error"); }
+        setEditMode(null);
+      } else {
+        const response = await fetch(projectApi, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create", project })
         });
-        formStatus.replaceChildren(document.createTextNode(`Project submitted. Your Project ID is ${result.projectNumber}. Keep this private edit link to update your entry later: `), link, document.createTextNode(" "), copy);
-        formStatus.className = "status success";
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "The request failed.");
+        form.reset();
+        setStatus(`Project submitted successfully. Your Project ID is ${result.projectNumber}.`, "success");
         document.querySelector("#project-list").scrollIntoView({ behavior: "smooth", block: "start" });
       }
     } catch (error) {
       console.error("Project submission/update error:", error);
       setStatus(error.message || "Could not save your project.", "error");
+    } finally {
       submitButton.disabled = false;
-      submitButton.textContent = editToken ? "Save changes" : "Submit project";
+      submitButton.textContent = editingProjectId ? "Save changes" : "Submit project";
+      if (cancelEditButton) cancelEditButton.disabled = false;
     }
   });
 } catch (error) {
@@ -95,6 +74,19 @@ try {
 }
 
 function clean(value) { return String(value ?? "").trim(); }
+function setEditMode(projectId, project = null) {
+  editingProjectId = projectId;
+  if (project) for (const key of ["name", "projectTitle", "subtitle", "datasets"]) form.elements.namedItem(key).value = project[key] || "";
+  document.querySelector("#form-heading").textContent = projectId ? `Edit Project #${project.projectNumber || ""}` : "Add your project";
+  submitButton.textContent = projectId ? "Save changes" : "Submit project";
+  editNotice.hidden = !projectId;
+  if (cancelEditButton) cancelEditButton.hidden = !projectId;
+  editNotice.textContent = projectId ? "Open editing is enabled: anyone can edit this entry. Your changes will be public." : "Anyone can edit any project entry using its Edit button.";
+  if (projectId) {
+    document.querySelector("#project-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    form.elements.namedItem("name").focus({ preventScroll: true });
+  }
+}
 function setStatus(message, type) {
   formStatus.textContent = message;
   formStatus.className = "status" + (type ? " " + type : "");
@@ -218,7 +210,11 @@ function renderProject(project) {
     comparison.append(aiButton, aiResult);
   }
   meta.append(comparison);
-  article.append(top, title, subtitle, meta);
+  const editActions = document.createElement("div"); editActions.className = "admin-entry-actions";
+  const editButton = document.createElement("button"); editButton.type = "button"; editButton.className = "secondary-button"; editButton.textContent = "Edit";
+  editButton.addEventListener("click", () => { setEditMode(project.id, project); setStatus(`Editing Project #${project.displayNumber}.`, ""); });
+  editActions.append(editButton);
+  article.append(top, title, subtitle, meta, editActions);
   return article;
 }
 function makeMeta(label, value) {
