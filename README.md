@@ -1,74 +1,73 @@
 # BSc Project Tracker 29
 
-A small public project directory for the BSc Project Tracker 29 cohort. Students can submit project details and everyone can view the shared entries.
+A small public project directory for the BSc Project Tracker 29 cohort. Students submit a project title/domain and dataset(s); everyone can view entries and compare possible overlaps.
 
-## Fields
-- Name (required)
-- Class Roll (required)
-- Supervisor Name (optional)
-- Project Domain / Title (required)
-- Dataset(s) (required)
+## Features
+- Minimal submission form: Project Domain / Title and Dataset(s) only.
+- A unique Project ID is generated from each Firestore document ID (format: `BSP29-<ID>`).
+- Similarity score for every entry's closest match: **80% title/domain word similarity + 20% dataset similarity**.
+- Related projects are grouped together at a 25% similarity threshold. The score is a screening aid, not an academic decision or proof of duplication.
+- Firebase Authentication-protected admin panel for deleting entries.
+- Existing records containing the old name, class-roll, and supervisor fields remain readable; those fields are no longer collected or displayed.
 
-The app is a static HTML/CSS/JavaScript site. Firebase Cloud Firestore stores entries; Netlify can host the static site. No Firebase account setup or Netlify deployment has been performed.
+## Firebase setup
 
-## 1. Create a free Firebase project
-1. Open https://console.firebase.google.com/ and sign in.
-2. Select **Add project** and create a project, for example bsc-project-tracker-29. Google Analytics is not required.
-3. In Project Overview, click **Add app** and choose the Web icon (</>).
-4. Give it a nickname such as BSc Project Tracker 29 Web and register the app. Firebase Hosting is not needed.
-5. Firebase displays a web config object with apiKey, authDomain, projectId, storageBucket, messagingSenderId, and appId. Copy these values.
+This repository contains the Firebase web configuration already used by the previous version in `firebase-config.js`. If you change Firebase projects, replace those values with your own Web app configuration. Browser config values are not service-account secrets; never commit service-account JSON or private keys.
 
-## 2. Enable Cloud Firestore
-1. In Firebase Console, open **Build → Firestore Database**.
-2. Click **Create database** and choose **Production mode**.
-3. Choose a database location near your users; this choice cannot easily be changed later.
-4. Once created, open the **Rules** tab.
-5. Replace the rules with the complete contents of this repository's firestore.rules file, then click **Publish**.
+1. Open [Firebase Console](https://console.firebase.google.com/) and select the project used by this app.
+2. Ensure **Cloud Firestore** is enabled.
+3. In Firestore → **Rules**, replace the rules with the complete contents of this repository's `firestore.rules` and click **Publish**.
+4. In Firebase Console → **Authentication** → **Sign-in method**, enable **Email/Password**.
+5. In Authentication → **Users**, add the admin account manually. Do not expose a public sign-up form.
+6. Copy the new admin user's **UID**.
+7. In Firestore → **Data**, create a collection named `admins`. Create a document whose document ID is exactly that UID, with one boolean field: `enabled: true`.
+8. Open `/admin.html` on the deployed site and sign in with that admin account.
 
-The rules allow anyone to read project entries and submit a new entry, but do not allow editing or deleting existing entries. This is intentionally a public, no-login tracker. Anyone with access can submit data, so it is not spam-proof. Consider adding authentication or App Check if abuse becomes an issue.
+The `admins/{uid}` grant must be created by a trusted project owner in the Firebase Console. The app's client-side rules deliberately deny creating or changing admin grants. An admin can read only their own grant and can delete project documents; normal visitors can read and submit but cannot delete or edit entries.
 
-## 3. Add Firebase config
-Open firebase-config.js in GitHub and replace each placeholder with the matching value from the Firebase Web app config.
+## Similarity method
 
-Use your own values in this structure:
-    export const firebaseConfig = {
-      apiKey: "AIza...",
-      authDomain: "your-project.firebaseapp.com",
-      projectId: "your-project",
-      storageBucket: "your-project.firebasestorage.app",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef"
-    };
+The browser calculates:
+- **Title/domain (80%)**: cosine similarity over normalized word-frequency vectors after basic token cleanup and stop-word removal.
+- **Datasets (20%)**: Jaccard similarity over normalized dataset-name tokens.
+- **Overall score**: (0.8 × titleSimilarity + 0.2 × datasetSimilarity), shown as a percentage.
 
-These are browser configuration values, not a service-account private key. Never put a Firebase service-account JSON file or private key in this public repository.
+Entries connected by a pairwise score of at least 25% are placed in the same related-project group. The threshold is a practical display setting, not a validated academic cutoff. Scores can miss semantic overlap when different words are used; students and supervisors should review close matches.
 
-## 4. Deploy with Netlify manually
-1. Sign in at https://www.netlify.com/.
+## Optional open-source LLM judge
+
+An optional Netlify Function is included for a second-stage semantic title review using Hugging Face Inference Providers and the open-weight `Qwen/Qwen2.5-7B-Instruct-1M` model. It is separate from the deterministic 80/20 score and should be treated as an additional opinion, not an authoritative plagiarism detector.
+
+To enable it:
+1. Create a Hugging Face token with **Make calls to Inference Providers** permission.
+2. In Netlify → Site configuration → Environment variables, add `HF_TOKEN` with that token.
+3. Redeploy the site. The token stays server-side and is never sent to visitors.
+4. The app's AI-review control can then request a semantic judge for a pair of project titles.
+
+Hugging Face Inference Providers may require credits or paid usage depending on current account/provider availability. The core project tracker and numeric similarity feature do not depend on this service.
+
+## Deploy with Netlify manually
+1. Sign in at [Netlify](https://www.netlify.com/).
 2. Choose **Add new project → Import an existing project**.
-3. Connect GitHub and select MJwd-Hasan/bs-project-tracker.
-4. Select the main branch. The included netlify.toml publishes the repository root; no build command is needed.
-5. Deploy. Netlify will provide a public URL.
+3. Connect GitHub and select `MJwd-Hasan/bs-project-tracker`.
+4. Select branch `main`. No build command is required; publish directory is `.`.
+5. Deploy. Netlify can redeploy automatically after future pushes to `main`.
 
-Netlify can redeploy automatically when changes are pushed to main.
-
-## 5. Test
-1. Open the Netlify URL and submit a test entry.
-2. Open the same URL in another browser or private window; the entry should appear there too.
-3. If entries do not load, check the browser console, Firebase config values, and published Firestore rules.
+Netlify is still a manual connection; this repository update does not connect or deploy the site.
 
 ## Firestore data structure
-Collection: projects
+
+Collection: `projects`
 
 | Field | Type |
 |---|---|
-| name | string |
-| classRoll | string |
-| supervisor | string |
 | projectTitle | string |
 | datasets | string |
 | createdAt | server timestamp |
 
-The app listens to the collection in real time, newest submissions first.
+Old documents with `name`, `classRoll`, and `supervisor` fields are retained and ignored by the new interface. No migration or deletion of existing project documents is performed.
 
-## Cost
-Firebase offers no-cost quotas, but availability and limits depend on the product, region, and current plan. Check https://firebase.google.com/pricing and consider setting a budget alert in Google Cloud. This app uses Firestore only and does not require paid Firebase Hosting.
+## Cost and security notes
+- Firestore reads/submissions remain public; unrestricted public submissions can be spammed. Consider Firebase App Check or an authenticated submission workflow if abuse occurs.
+- Only a Firebase account with an explicitly granted `admins/{uid}` document can delete entries.
+- Hugging Face inference is optional and may not be free or always available. The main similarity score is computed locally in the browser.
