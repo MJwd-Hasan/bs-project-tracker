@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f8fa"><meta name="description" content="A shared directory of BSc Project Tracker 29 projects."><title>BSc Project Tracker 29</title><link rel="stylesheet" href="./styles.css"></head>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f8fa"><meta name="description" content="A shared directory of BSc Project Tracker 29 projects."><title>BSc Project Tracker 29</title><link rel="stylesheet" href="./styles.css"></head>
 <body>
-<header class="site-header"><div class="container header-inner"><a class="brand" href="./">BSc Project Tracker <span>29</span></a><a class="header-link" href="#project-list">View entries</a></div></header>
+<header class="site-header"><div class="container header-inner"><a class="brand" href="./">BSc Project Tracker <span>29</span></a><nav class="header-actions"><a class="header-link" href="#project-list">View entries</a><a class="header-link" href="./admin.html">Admin</a></nav></div></header>
 <main class="container">
-<section class="intro"><p class="eyebrow">BSc · ISRT-29</p><h1>BSc Project Tracker 29</h1><p class="intro-copy">A shared list of project topics, supervisors, and datasets.</p></section>
+<section class="intro"><p class="eyebrow">BSc · ISRT-29</p><h1>BSc Project Tracker 29</h1><p class="intro-copy">A shared project directory to help students identify overlapping topics and datasets before committing to a project.</p></section>
 <section class="panel form-panel" aria-labelledby="form-heading"><div class="section-heading"><div><p class="eyebrow">Contribute</p><h2 id="form-heading">Add your project</h2></div></div>
 <form id="project-form"><div class="form-grid">
-<label><span>Name <b aria-hidden="true">*</b></span><input name="name" type="text" maxlength="100" autocomplete="name" required placeholder="Your full name"></label>
-<label><span>Class Roll <b aria-hidden="true">*</b></span><input name="classRoll" type="text" maxlength="30" required placeholder="Your class roll"></label>
-<label><span>Supervisor Name <small>(optional)</small></span><input name="supervisor" type="text" maxlength="120" placeholder="Supervisor's name"></label>
-<label><span>Project Domain / Title <b aria-hidden="true">*</b></span><input name="projectTitle" type="text" maxlength="240" required placeholder="Your project domain or working title"></label>
+<label class="full-width"><span>Project Domain / Title <b aria-hidden="true">*</b></span><input name="projectTitle" type="text" maxlength="240" required placeholder="Describe your proposed project clearly"></label>
 <label class="full-width"><span>Dataset(s) <b aria-hidden="true">*</b></span><textarea name="datasets" rows="3" maxlength="1000" required placeholder="List dataset names, sources, or links"></textarea></label>
-</div><div class="form-footer"><p class="form-note">Please check your details before submitting. Entries are visible to everyone.</p><button id="submit-button" type="submit">Submit project</button></div><p id="form-status" class="status" role="status" aria-live="polite"></p></form></section>
-<section id="project-list" class="entries-section" aria-labelledby="entries-heading"><div class="entries-heading"><div><p class="eyebrow">Shared directory</p><h2 id="entries-heading">Project entries</h2></div><span id="entry-count" class="entry-count">Loading…</span></div><div id="load-status" class="load-status" role="status">Connecting to the project database…</div><div id="project-entries" class="entries-list"></div></section>
+</div><div class="form-footer"><p class="form-note">Your entry receives a unique project ID. Entries and similarity comparisons are visible to everyone.</p><button id="submit-button" type="submit">Submit project</button></div><p id="form-status" class="status" role="status" aria-live="polite"></p></form></section>
+<section id="project-list" class="entries-section" aria-labelledby="entries-heading"><div class="entries-heading"><div><p class="eyebrow">Shared directory</p><h2 id="entries-heading">Project entries</h2></div><span id="entry-count" class="entry-count">Loading…</span></div>
+<p class="similarity-note">Similarity = 80% project title/domain word similarity + 20% dataset similarity. Scores are screening indicators, not proof of duplication.</p>
+<div id="load-status" class="load-status" role="status">Connecting to the project database…</div><div id="project-entries" class="entries-list"></div></section>
 <footer class="site-footer">BSc Project Tracker 29</footer></main><script type="module" src="./app.js"></script></body></html>
