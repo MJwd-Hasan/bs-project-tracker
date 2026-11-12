@@ -27,7 +27,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /projectEditKeys/{keyHash} {\n      allow read, write: if false;\n    }\n\n    match /admins/{userId} {
+    match /projectEditKeys/{keyHash} {
+      allow read, write: if false;
+    }
+
+    match /admins/{userId} {
       allow get: if request.auth != null && request.auth.uid == userId;
       allow list, create, update, delete: if false;
     }
