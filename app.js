@@ -66,7 +66,8 @@ try {
       } else {
         form.reset();
         const editUrl = new URL(location.href);
-        editUrl.search = "";\n        editUrl.hash = "edit=" + encodeURIComponent(result.editToken);
+        editUrl.search = "";
+        editUrl.hash = "edit=" + encodeURIComponent(result.editToken);
         const link = document.createElement("a");
         link.href = editUrl.href; link.textContent = "Open your private edit link";
         link.className = "edit-link";
