@@ -4,6 +4,7 @@ A shared project directory for the BSc Project Tracker 29 cohort. Students sign 
 
 ## Features
 - Submission fields: **Project Domain / Title** and **Dataset(s)**. The verified institutional email is attached automatically and displayed on the card.
+- Each verified `@isrt.ac.bd` email can submit **one project only**. The server enforces this with a transaction-backed email claim, including protection against simultaneous duplicate submissions.
 - Each project is tied to its submitter's Firebase Authentication UID and verified institutional email. Only that Google account can edit the project; all entries remain publicly viewable.
 - Project submissions are created by a Netlify Function that verifies the caller's Firebase ID token. Student edits are saved directly to Firestore under owner-checked security rules.
 - Each entry receives a simple sequential integer Project Number (for example, **Project #12**); the Firestore document key remains internal.
@@ -89,6 +90,14 @@ The repository is configured for a static Netlify deployment with a Functions di
 
 **`counters/projectSequence`**
 - `value`: integer
+
+**`submissionClaims/{sha256-of-email}`**
+- `email`: verified institutional email
+- `uid`: Firebase Authentication UID
+- `projectRef`: submitted project document ID
+- `createdAt`: server timestamp
+
+The claim document is created atomically with the project. Do not delete a claim while its project exists; doing so would permit another submission from that email.
 
 ## Security note
 
