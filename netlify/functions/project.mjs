@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { createHash } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
@@ -42,12 +43,29 @@ export default async request => {
     const project = validate(body.project);
     const projectRef = store.collection("projects").doc();
     let projectNumber;
+    // A deterministic claim document enforces one submission per verified email,
+    // including concurrent requests and accounts that resolve to the same email.
+    const emailKey = createHash("sha256").update(email).digest("hex");
+    const claimRef = store.collection("submissionClaims").doc(emailKey);
     await store.runTransaction(async tx => {
+      const claim = await tx.get(claimRef);
+      const existingByEmail = await tx.get(
+        store.collection("projects").where("ownerEmail", "==", email).limit(1)
+      );
+      const existingByUid = await tx.get(
+        store.collection("projects").where("ownerUid", "==", decoded.uid).limit(1)
+      );
+      if (claim.exists || !existingByEmail.empty || !existingByUid.empty) {
+        const duplicate = new Error("This @isrt.ac.bd email has already submitted a project. Each institutional email may submit only one project.");
+        duplicate.statusCode = 409;
+        throw duplicate;
+      }
       const counterRef = store.collection("counters").doc("projectSequence");
       const counter = await tx.get(counterRef);
       const previous = Number(counter.exists ? counter.data().value : 0) || 0;
       projectNumber = previous + 1;
       tx.set(counterRef, { value: projectNumber });
+      tx.create(claimRef, { email, uid: decoded.uid, projectRef: projectRef.id, createdAt: FieldValue.serverTimestamp() });
       tx.create(projectRef, {
         ...project, ownerUid: decoded.uid, ownerEmail: email,
         projectNumber, createdAt: FieldValue.serverTimestamp()
@@ -55,7 +73,7 @@ export default async request => {
     });
     return reply({ projectNumber });
   } catch (error) {
-    const status = String(error.code || "").startsWith("auth/") ? 401 : /required|allowed length|invalid/i.test(error.message) ? 400 : 500;
+    const status = error.statusCode || (String(error.code || "").startsWith("auth/") ? 401 : /required|allowed length|invalid/i.test(error.message) ? 400 : 500);
     console.error("Project API error:", error);
     return reply({ error: error.message || "Unable to process the project request." }, status);
   }
