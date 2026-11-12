@@ -111,3 +111,12 @@ button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
 
 .form-actions{display:flex;align-items:center;gap:9px}.form-actions [hidden]{display:none}.form-actions .secondary-button{background:#626c7c}.form-actions .secondary-button:hover{background:#505a69}.edit-notice{display:block}
 @media(max-width:620px){.form-actions{flex-direction:column-reverse;align-items:stretch}.form-actions button{width:100%}}
+
+/* Institutional Google sign-in */
+.auth-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px}
+.auth-controls [hidden]{display:none}
+.signed-in-email{color:#344a83;font-size:13px;font-weight:650;overflow-wrap:anywhere}
+.auth-status{margin-top:12px}
+#project-form{margin-top:24px;padding-top:22px;border-top:1px solid #edf0f4}
+#project-form[hidden]{display:none}
+#google-signout{background:#626c7c}
