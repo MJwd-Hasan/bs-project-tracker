@@ -19,7 +19,7 @@ The Firebase web configuration is in `firebase-config.js`. It identifies the Fir
 1. Open [Firebase Console](https://console.firebase.google.com/) and select **bsc-project-tracker-29**.
 2. Ensure **Cloud Firestore** is enabled.
 3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. Project reads are public, student edits require the owner's verified institutional Google identity, and new submissions go through the Netlify Function.
-4. In Authentication → **Sign-in method**, enable **Google**.
+4. In Authentication → **Sign-in method**, enable **Google** for student sign-in and **Email/Password** for the existing admin panel.
 5. In Authentication → **Settings** → **Authorized domains**, ensure `project-tracker29.netlify.app` is listed. Add it if missing.
 6. In Authentication → **Users**, create the admin user manually. There is no public sign-up form.
 7. Copy that user's **UID**.
