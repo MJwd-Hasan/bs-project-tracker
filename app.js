@@ -1,10 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, serverTimestamp, doc, runTransaction } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const form = document.querySelector("#project-form");
 const submitButton = document.querySelector("#submit-button");
 const formStatus = document.querySelector("#form-status");
+const editNotice = document.querySelector("#edit-notice");
+const editToken = new URLSearchParams(location.search).get("edit");
+const projectApi = "/.netlify/functions/project";
 const loadStatus = document.querySelector("#load-status");
 const entriesContainer = document.querySelector("#project-entries");
 const entryCount = document.querySelector("#entry-count");
@@ -26,39 +29,60 @@ try {
     entryCount.textContent = "Unavailable";
   });
 
+  if (editToken) {
+    editNotice.hidden = false;
+    submitButton.textContent = "Load project…";
+    fetch(projectApi, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "load", token: editToken }) })
+      .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "This edit link is invalid or expired."); return data.project; })
+      .then(project => {
+        for (const key of ["name", "projectTitle", "subtitle", "datasets"]) form.elements.namedItem(key).value = project[key] || "";
+        document.querySelector("#form-heading").textContent = "Edit your project";
+        submitButton.textContent = "Save changes";
+        setStatus("Your project is loaded. Make your changes and save.", "success");
+      })
+      .catch(error => { setStatus(error.message, "error"); submitButton.disabled = true; });
+  }
+
   form.addEventListener("submit", async event => {
     event.preventDefault();
     if (!form.reportValidity()) return;
     const data = new FormData(form);
-    const project = {
-      name: clean(data.get("name")),
-      projectTitle: clean(data.get("projectTitle")),
-      datasets: clean(data.get("datasets")),
-      createdAt: serverTimestamp()
-    };
+    const project = Object.fromEntries(["name", "projectTitle", "subtitle", "datasets"].map(key => [key, clean(data.get(key))]));
     submitButton.disabled = true;
-    submitButton.textContent = "Submitting…";
+    submitButton.textContent = editToken ? "Saving…" : "Submitting…";
     setStatus("", "");
     try {
-      const projectNumber = await runTransaction(db, async transaction => {
-        const counterRef = doc(db, "counters", "projectSequence");
-        const counterSnapshot = await transaction.get(counterRef);
-        const previous = counterSnapshot.exists() ? Number(counterSnapshot.data().value) || 0 : 0;
-        const next = Math.max(previous, latestProjects.length) + 1;
-        transaction.set(counterRef, { value: next });
-        const newProjectRef = doc(projectsRef);
-        transaction.set(newProjectRef, { ...project, projectNumber: next });
-        return next;
+      const response = await fetch(projectApi, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editToken ? { action: "update", token: editToken, project } : { action: "create", project })
       });
-      form.reset();
-      setStatus(`Project submitted. Your Project ID is ${projectNumber}.`, "success");
-      document.querySelector("#project-list").scrollIntoView({ behavior: "smooth", block: "start" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The request failed.");
+      if (editToken) {
+        setStatus("Your project has been updated successfully.", "success");
+        submitButton.textContent = "Saved";
+      } else {
+        form.reset();
+        const editUrl = new URL(location.href);
+        editUrl.searchParams.set("edit", result.editToken);
+        const link = document.createElement("a");
+        link.href = editUrl.href; link.textContent = "Open your private edit link";
+        link.className = "edit-link";
+        const copy = document.createElement("button");
+        copy.type = "button"; copy.className = "secondary-button"; copy.textContent = "Copy edit link";
+        copy.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(editUrl.href); copy.textContent = "Copied"; }
+          catch { setStatus("Copy was blocked. Use the private edit link above and bookmark it.", "error"); }
+        });
+        formStatus.replaceChildren(document.createTextNode(`Project submitted. Your Project ID is ${result.projectNumber}. Keep this private edit link to update your entry later: `), link, document.createTextNode(" "), copy);
+        formStatus.className = "status success";
+        document.querySelector("#project-list").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     } catch (error) {
-      console.error("Project submission error:", error);
-      setStatus(`Submission failed (${error.code || "unknown error"}). Check the latest Firestore rules and try again.`, "error");
-    } finally {
+      console.error("Project submission/update error:", error);
+      setStatus(error.message || "Could not save your project.", "error");
       submitButton.disabled = false;
-      submitButton.textContent = "Submit project";
+      submitButton.textContent = editToken ? "Save changes" : "Submit project";
     }
   });
 } catch (error) {
@@ -158,6 +182,7 @@ function renderProject(project) {
   const top = document.createElement("div"); top.className = "entry-top";
   const id = document.createElement("span"); id.className = "project-id"; id.textContent = `Project #${project.displayNumber}`;
   const title = document.createElement("h3"); title.className = "entry-title"; title.textContent = project.projectTitle || "Untitled project";
+  const subtitle = document.createElement("p"); subtitle.className = "entry-subtitle"; subtitle.textContent = project.subtitle || ""; subtitle.hidden = !project.subtitle;
   top.append(id);
   const meta = document.createElement("div"); meta.className = "entry-meta";
   meta.append(makeMeta("Submitted by", project.name || "Name not available"), makeMeta("Dataset(s)", project.datasets || "Not specified"));
@@ -190,7 +215,7 @@ function renderProject(project) {
     comparison.append(aiButton, aiResult);
   }
   meta.append(comparison);
-  article.append(top, title, meta);
+  article.append(top, title, subtitle, meta);
   return article;
 }
 function makeMeta(label, value) {
