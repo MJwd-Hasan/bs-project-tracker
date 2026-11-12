@@ -46,7 +46,7 @@ The public directory is readable without signing in. To submit or edit, students
 
 Each new project stores `ownerUid` and `ownerEmail`. The email is displayed automatically on the public card. The Edit button is shown only when the signed-in Firebase UID matches the project's `ownerUid`; Firestore rules independently enforce the same ownership check. Students can see every project but cannot edit another student's entry.
 
-**Legacy entries:** projects created before institutional sign-in do not have a verified owner UID/email. They remain visible but are not editable by students until an admin assigns ownership or the student submits a new entry. Ownership cannot safely be inferred from an old display name.
+**Legacy entries:** projects created before institutional sign-in do not have a verified owner UID/email. They remain visible but are not editable by students under the new ownership rules. The student should contact the administrator to arrange a one-time ownership migration, or submit a new entry. Ownership cannot safely be inferred from an old display name.
 
 
 
