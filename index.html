@@ -7,9 +7,10 @@
 <section class="intro"><p class="eyebrow">BSc · ISRT-29</p><h1>BSc Project Tracker 29</h1><p class="intro-copy">A shared project directory to help students identify overlapping topics and datasets before committing to a project.</p></section>
 <section class="panel form-panel" aria-labelledby="form-heading"><div class="section-heading"><div><p class="eyebrow">Contribute</p><h2 id="form-heading">Add your project</h2></div></div>
 <form id="project-form"><div class="form-grid">
-<label class="full-width"><span>Project Domain / Title <b aria-hidden="true">*</b></span><input name="projectTitle" type="text" maxlength="240" required placeholder="Describe your proposed project clearly"></label>
+<label><span>Your name <b aria-hidden="true">*</b></span><input name="name" type="text" maxlength="100" autocomplete="name" required placeholder="Enter your full name"></label>
+<label><span>Project Domain / Title <b aria-hidden="true">*</b></span><input name="projectTitle" type="text" maxlength="240" required placeholder="Describe your proposed project"></label>
 <label class="full-width"><span>Dataset(s) <b aria-hidden="true">*</b></span><textarea name="datasets" rows="3" maxlength="1000" required placeholder="List dataset names, sources, or links"></textarea></label>
-</div><div class="form-footer"><p class="form-note">Your entry receives a unique project ID. Entries and similarity comparisons are visible to everyone.</p><button id="submit-button" type="submit">Submit project</button></div><p id="form-status" class="status" role="status" aria-live="polite"></p></form></section>
+</div><div class="form-footer"><p class="form-note">Your entry receives a simple number. Entries and similarity comparisons are visible to everyone.</p><button id="submit-button" type="submit">Submit project</button></div><p id="form-status" class="status" role="status" aria-live="polite"></p></form></section>
 <section id="project-list" class="entries-section" aria-labelledby="entries-heading"><div class="entries-heading"><div><p class="eyebrow">Shared directory</p><h2 id="entries-heading">Project entries</h2></div><span id="entry-count" class="entry-count">Loading…</span></div>
 <p class="similarity-note">Similarity = 80% project title/domain word similarity + 20% dataset similarity. Scores are screening indicators, not proof of duplication.</p>
 <div id="load-status" class="load-status" role="status">Connecting to the project database…</div><div id="project-entries" class="entries-list"></div></section>
