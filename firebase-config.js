@@ -1,10 +1,21 @@
-// Replace these placeholders with the Firebase Web app config from Project settings > Your apps.
-// Never place a service-account private key in this public repository.
-export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAyHYTvmBecF0R6TF9QiY7h2Ab1yhfwBg0",
+  authDomain: "bsc-project-tracker-29.firebaseapp.com",
+  projectId: "bsc-project-tracker-29",
+  storageBucket: "bsc-project-tracker-29.firebasestorage.app",
+  messagingSenderId: "1043784511132",
+  appId: "1:1043784511132:web:d7bc4779dc5e61a38a8759",
+  measurementId: "G-HGBZT3JMRR"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
