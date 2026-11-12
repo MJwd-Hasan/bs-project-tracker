@@ -9,27 +9,41 @@ service cloud.firestore {
 
     match /projects/{projectId} {
       allow read: if true;
-      // New entries only need the title, datasets, and server timestamp.
-      // Legacy entries with name/roll/supervisor remain readable.
       allow create: if
-        request.resource.data.keys().hasAll(['projectTitle','datasets','createdAt']) &&
-        request.resource.data.keys().hasOnly(['projectTitle','datasets','createdAt']) &&
+        request.resource.data.keys().hasAll(['name','projectTitle','datasets','projectNumber','createdAt']) &&
+        request.resource.data.keys().hasOnly(['name','projectTitle','datasets','projectNumber','createdAt']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 100 &&
         request.resource.data.projectTitle is string &&
         request.resource.data.projectTitle.size() > 0 &&
         request.resource.data.projectTitle.size() <= 240 &&
         request.resource.data.datasets is string &&
         request.resource.data.datasets.size() > 0 &&
         request.resource.data.datasets.size() <= 1000 &&
+        request.resource.data.projectNumber is int &&
+        request.resource.data.projectNumber > 0 &&
         request.resource.data.createdAt == request.time;
-      allow update: if false;
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectNumber']);
       allow delete: if isAdmin();
     }
 
-    // An authenticated user may read only their own admin flag.
-    // No client can create, edit, or delete admin grants.
     match /admins/{userId} {
       allow get: if request.auth != null && request.auth.uid == userId;
       allow list, create, update, delete: if false;
+    }
+
+    match /counters/{counterId} {
+      allow read: if counterId == 'projectSequence';
+      allow create: if counterId == 'projectSequence' &&
+        request.resource.data.keys().hasOnly(['value']) &&
+        request.resource.data.value is int && request.resource.data.value > 0;
+      allow update: if counterId == 'projectSequence' &&
+        request.resource.data.keys().hasOnly(['value']) &&
+        request.resource.data.value is int &&
+        (isAdmin() || request.resource.data.value == resource.data.value + 1);
+      allow delete: if false;
     }
   }
 }
