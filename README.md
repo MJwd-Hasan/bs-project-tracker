@@ -1,73 +1,80 @@
 # BSc Project Tracker 29
 
-A small public project directory for the BSc Project Tracker 29 cohort. Students submit a project title/domain and dataset(s); everyone can view entries and compare possible overlaps.
+A shared project directory for the BSc Project Tracker 29 cohort. Students submit their name, project title/domain, and dataset(s); everyone can view entries and compare possible overlap.
 
 ## Features
-- Minimal submission form: Project Domain / Title and Dataset(s) only.
-- A unique Project ID is generated from each Firestore document ID (format: `BSP29-<ID>`).
-- Similarity score for every entry's closest match: **80% title/domain word similarity + 20% dataset similarity**.
-- Related projects are grouped together at a 25% similarity threshold. The score is a screening aid, not an academic decision or proof of duplication.
-- Firebase Authentication-protected admin panel for deleting entries.
-- Existing records containing the old name, class-roll, and supervisor fields remain readable; those fields are no longer collected or displayed.
+- Submission fields: **Name**, **Project Domain / Title**, and **Dataset(s)**.
+- Each entry receives a simple sequential integer Project Number (for example, **Project #12**); the Firestore document key remains internal.
+- Similarity score: **80% title/domain word similarity + 20% dataset similarity**.
+- Related projects are grouped at a 25% pairwise similarity threshold. This is a screening indicator, not proof of duplication.
+- Firebase Email/Password authentication protects the admin panel.
+- Admins can delete entries and the admin panel automatically assigns permanent integer numbers to legacy entries.
 
-## Firebase setup
+## Firebase setup and required update
 
-This repository contains the Firebase web configuration already used by the previous version in `firebase-config.js`. If you change Firebase projects, replace those values with your own Web app configuration. Browser config values are not service-account secrets; never commit service-account JSON or private keys.
+The Firebase web configuration is in `firebase-config.js`. It identifies the Firebase project and is intended for browser use; never put service-account private keys in this file or commit them to GitHub.
 
-1. Open [Firebase Console](https://console.firebase.google.com/) and select the project used by this app.
+1. Open [Firebase Console](https://console.firebase.google.com/) and select **bsc-project-tracker-29**.
 2. Ensure **Cloud Firestore** is enabled.
-3. In Firestore → **Rules**, replace the rules with the complete contents of this repository's `firestore.rules` and click **Publish**.
-4. In Firebase Console → **Authentication** → **Sign-in method**, enable **Email/Password**.
-5. In Authentication → **Users**, add the admin account manually. Do not expose a public sign-up form.
-6. Copy the new admin user's **UID**.
-7. In Firestore → **Data**, create a collection named `admins`. Create a document whose document ID is exactly that UID, with one boolean field: `enabled: true`.
-8. Open `/admin.html` on the deployed site and sign in with that admin account.
+3. In Firestore → **Rules**, publish the complete contents of this repository's `firestore.rules`. This is required for the current Name + integer-number schema and counter transaction.
+4. In Authentication → **Sign-in method**, enable **Email/Password**.
+5. In Authentication → **Settings** → **Authorized domains**, ensure `project-tracker29.netlify.app` is listed. Add it if missing.
+6. In Authentication → **Users**, create the admin user manually. There is no public sign-up form.
+7. Copy that user's **UID**.
+8. In Firestore → **Data**, create a collection named `admins`. Create a document with the exact UID as its document ID and a boolean field `enabled: true`.
+9. Open `https://project-tracker29.netlify.app/admin.html` and sign in with the same email and password.
 
-The `admins/{uid}` grant must be created by a trusted project owner in the Firebase Console. The app's client-side rules deliberately deny creating or changing admin grants. An admin can read only their own grant and can delete project documents; normal visitors can read and submit but cannot delete or edit entries.
+### Admin login troubleshooting
+
+The admin page now displays specific Firebase authentication errors:
+- **invalid-credential**: verify the email/password and that the user exists in Authentication → Users.
+- **operation-not-allowed**: enable Email/Password provider.
+- **unauthorized-domain**: add the Netlify domain to Authorized domains.
+- **network-request-failed**: check network access, browser extensions, and content blockers.
+- **Signed in, but not authorized**: create `admins/{UID}` with boolean `enabled: true`.
+- **permission-denied while checking admin status**: publish the latest `firestore.rules`, then reload the page.
+
+The UID shown on the admin page is the value to use as the `admins` document ID. Do not share the admin password.
+
+## Project numbers and existing records
+
+New submissions allocate a sequential integer using a Firestore transaction and the `counters/projectSequence` document. This prevents two concurrent submissions from receiving the same number. The underlying random Firestore document ID is not shown to users.
+
+Legacy project documents are retained. When an authorized admin opens the admin panel, it assigns permanent integer numbers to any legacy documents that do not yet have one and updates the sequence counter. Until that migration has run, legacy entries are shown with a temporary list number. Names from older documents are displayed when available; otherwise the page shows “Name not available”.
 
 ## Similarity method
 
-The browser calculates:
 - **Title/domain (80%)**: cosine similarity over normalized word-frequency vectors after basic token cleanup and stop-word removal.
 - **Datasets (20%)**: Jaccard similarity over normalized dataset-name tokens.
-- **Overall score**: (0.8 × titleSimilarity + 0.2 × datasetSimilarity), shown as a percentage.
+- **Overall**: `0.8 × titleSimilarity + 0.2 × datasetSimilarity`.
 
-Entries connected by a pairwise score of at least 25% are placed in the same related-project group. The threshold is a practical display setting, not a validated academic cutoff. Scores can miss semantic overlap when different words are used; students and supervisors should review close matches.
+The threshold is a practical display setting, not a validated academic cutoff. Similarity can miss semantic overlap when different wording is used; students and supervisors should review close matches.
 
 ## Optional open-source LLM judge
 
-An optional Netlify Function is included for a second-stage semantic title review using Hugging Face Inference Providers and the open-weight `Qwen/Qwen2.5-7B-Instruct-1M` model. It is separate from the deterministic 80/20 score and should be treated as an additional opinion, not an authoritative plagiarism detector.
+An optional Netlify Function provides a second-stage semantic title review using Hugging Face Inference Providers and the open-weight `Qwen/Qwen2.5-7B-Instruct-1M` model.
 
-To enable it:
-1. Create a Hugging Face token with **Make calls to Inference Providers** permission.
-2. In Netlify → Site configuration → Environment variables, add `HF_TOKEN` with that token.
-3. Redeploy the site. The token stays server-side and is never sent to visitors.
-4. The app's AI-review control can then request a semantic judge for a pair of project titles.
+To enable it, create a Hugging Face token with Inference Providers permission, add it to Netlify as the `HF_TOKEN` environment variable, and redeploy. Provider availability and inference may require credits or paid usage. The core tracker does not depend on this feature.
 
-Hugging Face Inference Providers may require credits or paid usage depending on current account/provider availability. The core project tracker and numeric similarity feature do not depend on this service.
+## Netlify deployment
 
-## Deploy with Netlify manually
-1. Sign in at [Netlify](https://www.netlify.com/).
-2. Choose **Add new project → Import an existing project**.
-3. Connect GitHub and select `MJwd-Hasan/bs-project-tracker`.
-4. Select branch `main`. No build command is required; publish directory is `.`.
-5. Deploy. Netlify can redeploy automatically after future pushes to `main`.
+The repository is configured for a static Netlify deployment with a Functions directory. If GitHub auto-deploy is connected, pushes to `main` should trigger a deploy. Otherwise, trigger a manual deploy in Netlify.
 
-Netlify is still a manual connection; this repository update does not connect or deploy the site.
+## Firestore collections
 
-## Firestore data structure
+**`projects`**
+- `name`: string
+- `projectTitle`: string
+- `datasets`: string
+- `projectNumber`: integer
+- `createdAt`: server timestamp
 
-Collection: `projects`
+**`admins/{uid}`**
+- `enabled`: boolean
 
-| Field | Type |
-|---|---|
-| projectTitle | string |
-| datasets | string |
-| createdAt | server timestamp |
+**`counters/projectSequence`**
+- `value`: integer
 
-Old documents with `name`, `classRoll`, and `supervisor` fields are retained and ignored by the new interface. No migration or deletion of existing project documents is performed.
+## Security note
 
-## Cost and security notes
-- Firestore reads/submissions remain public; unrestricted public submissions can be spammed. Consider Firebase App Check or an authenticated submission workflow if abuse occurs.
-- Only a Firebase account with an explicitly granted `admins/{uid}` document can delete entries.
-- Hugging Face inference is optional and may not be free or always available. The main similarity score is computed locally in the browser.
+Project reads and submissions are public. This is convenient for a cohort directory but permits spam submissions. Admin grants cannot be created or modified from the public client; create them only in Firebase Console. Consider Firebase App Check or an authenticated submission workflow if abuse becomes an issue.
