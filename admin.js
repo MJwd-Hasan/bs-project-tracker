@@ -146,7 +146,7 @@ function renderEntry(id, project) {
   const idLine = document.createElement("div"); idLine.className = "project-id";
   idLine.textContent = Number.isInteger(project.projectNumber) ? `Project #${project.projectNumber}` : "Project number pending";
   const title = document.createElement("h3"); title.className = "entry-title"; title.textContent = project.projectTitle || "Untitled project";
-  const owner = document.createElement("p"); owner.className = "meta-value"; owner.textContent = "Submitted by: " + (project.name || "Name not available");
+  const owner = document.createElement("p"); owner.className = "meta-value"; owner.textContent = "Student email: " + (project.ownerEmail || "Legacy entry · owner not linked");
   const dataset = document.createElement("p"); dataset.className = "meta-value"; dataset.textContent = "Datasets: " + (project.datasets || "Not specified");
 
   const actions = document.createElement("div"); actions.className = "admin-entry-actions";
@@ -158,21 +158,18 @@ function renderEntry(id, project) {
   editForm.className = "admin-edit-form";
   editForm.hidden = true;
   const fields = [
-    { name: "name", label: "Student name", value: project.name || "", max: 100 },
     { name: "projectTitle", label: "Project Domain / Title", value: project.projectTitle || "", max: 240 },
-    { name: "subtitle", label: "Subtitle", value: project.subtitle || "", max: 160 },
     { name: "datasets", label: "Dataset(s)", value: project.datasets || "", max: 1000 }
   ];
   for (const field of fields) {
     const label = document.createElement("label");
     const caption = document.createElement("span"); caption.textContent = field.label;
-    const input = document.createElement(["datasets", "projectTitle"].includes(field.name) ? "textarea" : "input");
+    const input = document.createElement("textarea");
     input.name = field.name;
     input.value = field.value;
     input.maxLength = field.max;
     input.required = field.name !== "subtitle";
-    if (field.name === "projectTitle") input.rows = 4;
-    if (field.name === "datasets") input.rows = 2;
+    input.rows = field.name === "projectTitle" ? 4 : 2;
     label.append(caption, input);
     editForm.append(label);
   }
@@ -199,8 +196,8 @@ function renderEntry(id, project) {
     if (!editForm.reportValidity()) return;
     const data = new FormData(editForm);
     const changes = Object.fromEntries(fields.map(field => [field.name, String(data.get(field.name) || "").trim()]));
-    if (["name", "projectTitle", "datasets"].some(key => !changes[key])) {
-      setStatus("All project fields are required.", "error");
+    if (["projectTitle", "datasets"].some(key => !changes[key])) {
+      setStatus("Project title and dataset(s) are required.", "error");
       return;
     }
     saveButton.disabled = true; saveButton.textContent = "Saving…";
