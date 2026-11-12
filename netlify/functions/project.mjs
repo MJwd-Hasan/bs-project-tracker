@@ -55,7 +55,7 @@ export default async request => {
     });
     return reply({ projectNumber });
   } catch (error) {
-    const status = /required|allowed length|invalid/i.test(error.message) ? 400 : 500;
+    const status = String(error.code || "").startsWith("auth/") ? 401 : /required|allowed length|invalid/i.test(error.message) ? 400 : 500;
     console.error("Project API error:", error);
     return reply({ error: error.message || "Unable to process the project request." }, status);
   }
