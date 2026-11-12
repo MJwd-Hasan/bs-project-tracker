@@ -1,0 +1,11 @@
+{
+  "name": "bsc-project-tracker-29",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.5.0"
+  }
+}
