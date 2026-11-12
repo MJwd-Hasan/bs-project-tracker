@@ -168,7 +168,7 @@ function renderEntry(id, project) {
     input.name = field.name;
     input.value = field.value;
     input.maxLength = field.max;
-    input.required = field.name !== "subtitle";
+    input.required = true;
     input.rows = field.name === "projectTitle" ? 4 : 2;
     label.append(caption, input);
     editForm.append(label);
