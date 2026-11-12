@@ -4,7 +4,7 @@ export default async (request) => {
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { "Content-Type": "application/json" } });
   }
-  const token = Netlify.env.get("HF_TOKEN");
+  const token = process.env.HF_TOKEN;
   if (!token) {
     return new Response(JSON.stringify({ error: "AI judge is not configured. Set HF_TOKEN in Netlify environment variables." }), { status: 503, headers: { "Content-Type": "application/json" } });
   }
