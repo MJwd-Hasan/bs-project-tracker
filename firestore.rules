@@ -10,8 +10,9 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if true;
       allow create: if false;
-      allow update: if isAdmin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','projectTitle','subtitle','datasets','projectNumber']) &&
+      // Open editing: any visitor may change public project fields.
+      allow update: if (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','projectTitle','subtitle','datasets']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() > 0 &&
         request.resource.data.name.size() <= 100 &&
@@ -21,9 +22,13 @@ service cloud.firestore {
         (!('subtitle' in request.resource.data) || (request.resource.data.subtitle is string && request.resource.data.subtitle.size() <= 160)) &&
         request.resource.data.datasets is string &&
         request.resource.data.datasets.size() > 0 &&
-        request.resource.data.datasets.size() <= 1000 &&
+        request.resource.data.datasets.size() <= 1000
+      ) || (
+        isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['projectNumber']) &&
         request.resource.data.projectNumber is int &&
-        request.resource.data.projectNumber > 0;
+        request.resource.data.projectNumber > 0
+      );
       allow delete: if isAdmin();
     }
 
