@@ -34,7 +34,7 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow read: if counterId == 'projectSequence';
-      allow create: if counterId == 'projectSequence' &&
+      allow create: if isAdmin() && counterId == 'projectSequence' &&
         request.resource.data.keys().hasOnly(['value']) &&
         request.resource.data.value is int && request.resource.data.value > 0;
       allow update: if counterId == 'projectSequence' &&
